@@ -22,6 +22,7 @@ def main():
   print('Started')
   with mic as source:
     while(True):
+      print('Listening...')
       r.adjust_for_ambient_noise(source)
       audio = r.listen(source)
       results = r.recognize_google(audio, language='en-US', show_all=True)
@@ -29,9 +30,8 @@ def main():
       words = ' '
       if  'alternative' in results:
         words = results['alternative'][0]['transcript'].lower()
-      #print(results['alternative'][0]['transcript'])
+      
       print(words)
-      words = words.lower()
       #speak(words)
       if 'roku' in words:
         #Power
@@ -43,10 +43,23 @@ def main():
             speak('Powering down Roku')
             requests.post(baseURL + 'power/off', data={})
         #Main commands
+        firstKW = containsKeyWord(words, startKeyWords)
+        secondKW = containsKeyWord(words, afterTitleKeyWords)
+        platform = getPlatform(words)
 
-        elif 'netflix' in words:
-          requests.post(baseURL + 'start/netflix', data={})
-          speak('Opening Netflix')
+        if firstKW and platform:
+          if secondKW:
+            #Play media (movie, show, or song)
+            mediaTitle = getMediaTitle(words, firstKW, secondKW)
+            requests.post(f'{baseURL}start/{platform}/{mediaTitle}', data={})
+            speak(f'Searching {platform} for {mediaTitle}')
+          else:
+            #Open platform
+            requests.post(f'{baseURL}start/{platform}', data={})
+            speak(f'Opening {platform}')
+        else:
+          speak('Unrecognized input. Could you repeat that please?')
+
       elif 'stop' in words:
         speak('shutting down')
         break
@@ -57,7 +70,7 @@ def containsKeyWord(inputString, keyWords):
     if word in inputString: return word
   return False
 
-def getMovieTitle(inputString, firstKW, secondKW):
+def getMediaTitle(inputString, firstKW, secondKW):
   startingKeyWord = ' '
   firstKWIndex = inputString.find(firstKW)
   secondKWIndex = inputString.rfind(secondKW)
@@ -65,9 +78,7 @@ def getMovieTitle(inputString, firstKW, secondKW):
   return inputString[startIndex:secondKWIndex]
 
 def getPlatform(inputString):
-  for platform in mediaPlatforms:
-    if platform in inputString: return platform
-  return False
+  return containsKeyWord(inputString, mediaPlatforms)
 
 def speak(outputText):
   f = io.BytesIO()
